@@ -1,10 +1,9 @@
 #INCLUDE    <16F887.H>
-#include    <TV_PICKIT2_SHIFT_LCD.c> 
-#FUSES      WDT, PUT, HS, NOPROTECT, NOLVP
+#device     adc = 10
+#FUSES      NOWDT, PUT, HS, NOPROTECT, NOLVP
 #USE        DELAY(CLOCK = 20000000)
 #USE        I2C(MASTER,SLOW,SDA=PIN_D0,SCL=PIN_D1)
 #include    <TV_DS1307.c>
-
 #define LCD_ENABLE_PIN  PIN_c0                                                                       
 #define LCD_RS_PIN      PIN_c2                                   
 #define LCD_RW_PIN      PIN_c1                                    
@@ -13,39 +12,24 @@
 #define LCD_DATA6       PIN_e0                                    
 #define LCD_DATA7       PIN_a5                                    
 #include <lcd.c>
-
 #define btn_mode pin_b2       
 #define btn_up   pin_b1
 #define btn_dw   pin_b3
 #define on_off   pin_b4
-#define btn_set  pin_b0  
-                                                                   
+#define btn_set  pin_b0                                                                     
 #define relay        pin_b7
 #define bat_relay    output_low(relay);
 #define tat_relay    output_high(relay); 
-
-#define den_nen_lcd  pin_a4                    
- 
-unsigned int16 gio_ht = 0, phut_ht = 0, giay_ht = 0, giay_temp = 0;
-unsigned int16 gio_tat = 0, phut_tat = 0;
-unsigned int16 gio_bat = 0, phut_bat = 0;
-int1 chedo_hd;
-unsigned int8 dem_btnup = 0, dem_btndw = 0;                                                                                  
-unsigned int8 mode = 0, set = 0;
-int1 sln_btnup = 0, sln_btndw = 0;               
-
-void ht_soz_toa_do_xy(signed int8 so, x1, y1)
-{                     
-   lcd_gotoxy(x1, y1);
-   for(int i=0; i<6; i++)
-   {          
-      if(i==3) lcd_gotoxy(x1, y1+1);
-      if(lcd_so_x[so][i] != 7)   
-         lcd_putc(lcd_so_x[so][i]);
-      else lcd_putc(0xff);                                                                                
-   }
-} 
-
+#define den_nen_lcd  pin_a4                   
+#define  step  0.0048875855327;                    
+float temp_gtadc, gtadc = 0;  
+unsigned int8 gio_ht = 0, phut_ht = 0, giay_ht = 0, giay_temp = 0;
+unsigned int8 gio_tat = 0, phut_tat = 0;
+int1 tt_relay,  cp_doc_cbq, chedo_hd;
+unsigned int8 dem_btnup = 0, dem_btndw = 0, dem_tg_tcd = 0, dem_tat_dn_lcd = 0;                                                                                              
+unsigned int8 mode = 0, set = 0, sl_doc_adc = 0;
+unsigned int16 dem = 0;
+int1 sln_btnup = 0, sln_btndw = 0;              
 // DOC THOI GIAN TU DS130707
 void doc_thoi_gian_tu_ds1307()
 {                  
@@ -54,7 +38,6 @@ void doc_thoi_gian_tu_ds1307()
    phut_ht = (phut_ds1307 >> 4)*10 + (phut_ds1307&0x0f);
    giay_ht = (giay_ds1307 >> 4)*10 + (giay_ds1307&0x0f);
 }            
-
 // DAT LAI THOI GIAN HIEN TAI    
 void set_time_ds1307(unsigned int8 gio, unsigned int8 phut)
 {
@@ -63,30 +46,30 @@ void set_time_ds1307(unsigned int8 gio, unsigned int8 phut)
    giay_ds1307 = 0;                   
    dat_lai_thoi_gian_ds1307();   
 }                                  
-
 // HIEN THI LCD  
 void hienthi_lcd()
 {
    switch (mode)
    {                                                                                               
-/**/  case 0:    
-         ht_soz_toa_do_xy(gio_ht/10,1,1);
-         ht_soz_toa_do_xy(gio_ht%10,4,1); 
-             
-         lcd_gotoxy(7,1);   lcd_putc(3);
-         lcd_gotoxy(7,2);   lcd_putc(1);               
-                                   
-         ht_soz_toa_do_xy(phut_ht/10,8,1);
-         ht_soz_toa_do_xy(phut_ht%10,11,1);  
-                                        
-         lcd_gotoxy(14,1);        
-         printf(lcd_putc,":%02lu", giay_ht); 
-         
-         lcd_gotoxy(14,2);    lcd_putc(" ");
-         if (chedo_hd == 0)   {lcd_gotoxy(15,2);    lcd_putC("  ");}
-         else                 {lcd_gotoxy(15,2);    lcd_putC("**"); }
+/**/  case 0:  switch(set)       //hien thi thoi hien tai, trang thai relay, che do hoat dong
+         {
+         case 0:
+            lcd_gotoxy(1, 1) ;
+            printf (lcd_putc, "Thgian: %02u:%02u:%02u  ", gio_ht, phut_ht, giay_ht);
+            lcd_gotoxy(1, 2) ;
+            if (tt_relay == 1)   lcd_putc("Den:Bat ");                                                     
+            else                 lcd_putc("Den:Tat ");
+            if (chedo_hd == 0)   lcd_putC(" Tu dong"); 
+            else                 lcd_putC("Thu cong");
+            break;
+         case 1:                                                                                    
+            lcd_gotoxy(1, 1) ;                                                                         
+            lcd_putc("Thoigian cai dat");
+            lcd_gotoxy(1, 2) ;
+            printf (lcd_putc, "tat den: %02u:%02u       ", gio_tat, phut_tat);
+            break;                                                                                     
+         }
          break;
-      
 /**/  case 1:  switch (set)   //thoi gian hien tai
          {   
          case 0:
@@ -97,15 +80,15 @@ void hienthi_lcd()
             break;
          case 1:
             lcd_gotoxy(1, 1) ;
-            printf (lcd_putc, "* Gio  : %02lu       ", gio_ht);
+            printf (lcd_putc, "* Gio  : %02u       ", gio_ht);
             lcd_gotoxy(1, 2) ;
-            printf (lcd_putc, "  Phut : %02lu       ", phut_ht); 
+            printf (lcd_putc, "  Phut : %02u       ", phut_ht); 
             break;         
          case 2:
             lcd_gotoxy(1, 1) ;  
-            printf (lcd_putc, "  Gio  : %02lu       ", gio_ht); 
+            printf (lcd_putc, "  Gio  : %02u       ", gio_ht); 
             lcd_gotoxy(1, 2) ;
-            printf (lcd_putc, "* Phut : %02lu        ", phut_ht); 
+            printf (lcd_putc, "* Phut : %02u        ", phut_ht); 
             break;
          }
          break;
@@ -116,75 +99,76 @@ void hienthi_lcd()
             lcd_gotoxy(1, 1) ;
             lcd_putc("2. Cai dat thoi ");
             lcd_gotoxy(1, 2) ;
-            printf (lcd_putc, "  gian TAT den. ");
+            printf (lcd_putc, "  gian tat den. ");
             break;
          case 1:              
             lcd_gotoxy(1, 1) ; 
-            printf (lcd_putc, "* Gio  : %02lu       ", gio_tat); 
+            printf (lcd_putc, "* Gio  : %02u       ", gio_tat); 
             lcd_gotoxy(1, 2) ;
-            printf (lcd_putc, "  Phut : %02lu       ", phut_tat); 
+            printf (lcd_putc, "  Phut : %02u       ", phut_tat); 
             break;
          case 2:      
             lcd_gotoxy(1, 1) ;  
-            printf (lcd_putc, "  Gio  : %02lu       ", gio_tat); 
+            printf (lcd_putc, "  Gio  : %02u       ", gio_tat); 
             lcd_gotoxy(1, 2) ;
-            printf (lcd_putc, "* Phut : %02lu        ", phut_tat); 
+            printf (lcd_putc, "* Phut : %02u        ", phut_tat); 
             break;
          }
          break;
-      
-/**/  case 3: switch (set)    //che do hoat dong
-         {
+  /**/  case 3: switch (set)    //che do hoat dong
+      {
          case 0:
             lcd_gotoxy(1, 1) ;
-            lcd_putc("3. Cai dat thoi ");
+            lcd_putC("3.Cai dat che do");
             lcd_gotoxy(1, 2) ;
-            printf (lcd_putc, "  gian BAT den. ");
-            break;
-         case 1:              
-            lcd_gotoxy(1, 1) ; 
-            printf (lcd_putc, "* Gio  : %02lu       ", gio_bat); 
-            lcd_gotoxy(1, 2) ;
-            printf (lcd_putc, "  Phut : %02lu       ", phut_bat); 
-            break;
-         case 2:      
-            lcd_gotoxy(1, 1) ;  
-            printf (lcd_putc, "  Gio  : %02lu       ", gio_bat); 
-            lcd_gotoxy(1, 2) ;
-            printf (lcd_putc, "* Phut : %02lu        ", phut_bat); 
-            break;
+            lcd_putC("  hoat dong.    ");
+            break;          
+         case 1:  switch (chedo_hd)
+         {
+            case  0:
+               lcd_gotoxy(1, 1) ; 
+               lcd_putC("* Tu dong.      ");
+               lcd_gotoxy(1, 2) ;
+               lcd_putC("  Thu cong.     ");
+               break;
+            case  1:
+               lcd_gotoxy(1, 1) ;
+               lcd_putC("  Tu dong.      ");
+               lcd_gotoxy(1, 2) ;
+               lcd_putC("* Thu cong.     ");
+               break;
          }
          break;
+      }
    }
 }
-
 // NUT NHAN SET
 void button_set()
 {
    if (input(btn_set) == 0)
    {                
-      delay_ms (40) ;
+      delay_ms (20) ;
       if (input (btn_set) == 0)
       {
          set++ ;
          switch (mode)
          {
             case 1:
-            case 2: 
-            case 3:  if (set > 2) set = 1;    break;
+            case 2:  if (set > 2) set = 1;    break;
+            case 0:
+            case 3:  if (set > 1) set = 1;    break;
          }
          hienthi_lcd ();
       }
       while (input (btn_set) == 0) ;
    }
 }
-
 // NUT NHAN MODE 
 void button_mode()
 {
    if (input (btn_mode) == 0)
    {
-      delay_ms (40) ;
+      delay_ms (20) ;
       if (input (btn_mode) == 0)
       {              
          if (set != 0)  set = 0;
@@ -195,7 +179,31 @@ void button_mode()
       while (input (btn_mode) == 0);
    }
 }
-
+// NUT NHAN TAT MO DEN BANG TAY 
+void button_on_off_lamp()
+{        
+   if (input (on_off) == 0)
+   {              
+      delay_ms (20) ;       
+      if (input (on_off) == 0)
+      {             
+                           
+         if (tt_relay == 0)    
+         {       
+            bat_relay; 
+            tt_relay = 1;
+         }
+         else
+         {     
+            tat_relay; 
+            tt_relay = 0;       
+         }
+         hienthi_lcd ();
+         delay_ms(300); 
+      }
+      while (input (on_off) == 0);
+   }          
+}
 // NUT NHAN TANG
 int1 chong_doi_btn_up()
 {             
@@ -217,14 +225,19 @@ int1 chong_doi_btn_up()
       return 0;
    }
 }  
-
 void button_up()
 {                              
    if(chong_doi_btn_up())
    {                                                                                                  
       switch(mode)
       {
-         case 0:    break;                                                                                                      
+         case 0:                                                                                                     
+            if(set == 0)    
+            {                      
+               output_toggle(den_nen_lcd); 
+               while (input(btn_up) == 0); 
+            }                  
+            break;   
          case 1:
             if(set == 1)
             {           
@@ -257,22 +270,13 @@ void button_up()
          case 3:  
             if(set == 1)
             {
-               if(gio_bat >= 23)   gio_bat = 0;                                                                
-               else  gio_bat++;
-               write_eeprom(2,gio_bat);
-            }
-            else if(set == 2)
-            {
-               if(phut_bat >= 59)  phut_bat = 0;
-               else  phut_bat++; 
-               write_eeprom(3,phut_bat);
-            }
-            break;  
+               chedo_hd =  ~ chedo_hd;
+               while (input(btn_up) == 0); 
+            }   
       }                   
       hienthi_lcd ();
    }                                          
 }
-
 // NUT NHAN GIAM 
 int1 chong_doi_btn_dw()
 {
@@ -294,14 +298,19 @@ int1 chong_doi_btn_dw()
       return 0;
    }
 }
-
 void button_dw()     
 {
    if(chong_doi_btn_dw())
    {      
       switch(mode)
       {         
-         case 0:       break; 
+         case 0:  
+            if(set == 0)    
+            {        
+               output_toggle(den_nen_lcd); 
+               while (input(btn_dw) == 0); 
+            }
+            break; 
          case 1:        
             if(set == 1)                                                                                    
             {
@@ -332,121 +341,128 @@ void button_dw()
             break;
          
          case 3:  
-            if (set == 1)
-            {
-               if (gio_bat == 0)    gio_bat = 23;
-               else  gio_bat--;     
-               write_eeprom(2, gio_bat);
-            }          
-            else if(set == 2)
-            {         
-               if (phut_bat == 0)  phut_bat = 59;
-               else  phut_bat--;   
-               write_eeprom(3, phut_bat);
+            if(set == 1)  
+            {  
+               chedo_hd =  ~chedo_hd;
+               while (input(btn_dw) == 0); 
             }
-            break;
       }
       hienthi_lcd ();
    }
-} 
-
-/* BUTTON ON-OFF*/
-void button_onOff()
-{
-   if (input(on_off)==0)
-   {
-      chedo_hd = 1;
-   }
-   
-   if (chedo_hd == 1)
-   {
-      if ((gio_ht >= gio_tat) || (gio_ht < 5)) 
-         bat_relay;
-   }
-   
-/**/ //error   
-   if (chedo_hd == 0)
-   {
-      if(input_state(relay))
-      {
-         if((gio_ht*60+phut_ht) < (gio_tat*60+phut_tat))
-         {
-            if((gio_ht*60+phut_ht) > (gio_bat*60+phut_bat))
-            {
-               bat_relay;
-            }
-         }
-      }
-   }
-/*****************/ 
-   
-   if (gio_ht == 6 && phut_ht < 3)  chedo_hd = 0;
 }
-/*bat tat den */
-void on_off_den()
+// DOC DIEN AP TREN QUANG TRO
+void doc_dien_ap_tren_quang_tro()
+{                                                                                                                          
+   dem++;     delay_us(100);
+   if(dem >= 500)                                                                                          
+   {                     
+      temp_gtadc = read_adc() + temp_gtadc;
+      sl_doc_adc++;          
+      dem = 0;                                                                                             
+      if (sl_doc_adc == 40)                                                                                                 
+      {                                           
+         temp_gtadc = temp_gtadc/40.0;         
+         gtadc = temp_gtadc * step;    
+         temp_gtadc = 0;        
+         sl_doc_adc = 0; 
+      }  
+   } 
+}                          
+// BAT DEN KHI HOAT DONG O CHE DO TU DONG 
+void bat_den_o_che_do_tu_dong()
+{                          
+   if (cp_doc_cbq != 0 && gio_ht> 17) 
+   {                                         
+      doc_dien_ap_tren_quang_tro();
+      if (gtadc >= 4.9)      
+      {                       
+         bat_relay;        tt_relay = 1;     
+         cp_doc_cbq = 0;   write_eeprom(2,cp_doc_cbq);  
+         gtadc = 0;             
+         hienthi_lcd ();                     
+      }                       
+   }          
+}                                                                           
+// TAT RELAY - XOA TT RELAY
+void tat_den_o_che_do_tu_dong()
 {
-   if ((phut_ht == phut_bat) && (gio_ht == gio_bat))  bat_relay;
-   if (chedo_hd == 0)
+   if ((phut_tat <= phut_ht) && (gio_tat == gio_ht))
    {
-      if ((phut_ht == phut_tat) && (gio_ht == gio_tat))  tat_relay;
+      tat_relay;    tt_relay = 0;      
+   }                        
+   if ((gio_ht == 16) && (cp_doc_cbq == 0))  
+   {                               
+      cp_doc_cbq = 1;      
+      write_eeprom(2,cp_doc_cbq);   
+   }                 
+}                                      
+// THOAT KHOI CHE DO CAI DAT 
+void thoat_che_do_cai_dat()
+{
+   if (mode != 0  ||  set != 0) 
+   {           
+      dem_tg_tcd ++;         
+      if (dem_tg_tcd >= 90) 
+      {           
+         mode = 0;    set = 0;     
+         dem_tg_tcd = 0;  
+      }               
+   }                  
+   else  dem_tg_tcd = 0; 
+}                                   
+// TU DONG TAT DEN NEN LCD
+void tu_dong_tat_den_nen_lcd()
+{       
+   if((mode ==0) && (set == 0) && (input_state(den_nen_lcd) == 1))     
+   {               
+       dem_tat_dn_lcd++;
+       if(dem_tat_dn_lcd >= 90)
+       {                   
+          output_low(den_nen_lcd);    
+          dem_tat_dn_lcd = 0;                                                                                 
+       }                                                                                                  
    }
-   else
-   {
-      if ((phut_ht == 30) && (gio_ht == 5))  tat_relay;
-   }
-}
+   else dem_tat_dn_lcd = 0;
+}                                                                                                                                                                          
 // CHUONG TRINH CHINH
 VOID MAIN()
-{    
-   set_tris_a (0xcf);      set_tris_b (0x7f) ;     tat_relay; 
+{                                                                    
+   set_tris_a (0xcf);      set_tris_b (0x7f) ;      tt_relay = 0;    tat_relay; 
    set_tris_c (0x00) ;     set_tris_e (0x00) ;
-   port_b_pullups(0x7f);   output_high(den_nen_lcd);
+   port_b_pullups(0x7f);   output_low(den_nen_lcd);
                    
-   lcd_init ();   
+   lcd_init ();                      
    
-   //watch dog timer
-   setup_wdt(WDT_2304MS);
+   setup_adc(adc_clock_div_8);  
+   setup_adc_ports(sAN1 | VREF_VREF); 
+   set_adc_channel(1);     
                                                                                                                     
-   mode = 0;         set = 0;          chedo_hd = 0;    
+   mode = 0;         set = 0;         temp_gtadc=0;    
+   gtadc = 0;        chedo_hd = 0;    
                            
-   gio_tat = read_eeprom (0);  phut_tat = read_eeprom (1);    
-   
-   gio_bat = read_eeprom (2);  phut_bat = read_eeprom (3); 
-   
-   lcd_send_byte(0, 0x40);                                                                                     
-   for(int8 j=0; j<64; j++)
-   {                               
-      lcd_send_byte(1,LCD_MA_8DOAN[j]);
-   }                                                  
-   unsigned char temp = 0; // dua ve man hinh chinh.                                                 
+   gio_tat = read_eeprom (0);  phut_tat = read_eeprom (1);  
+   cp_doc_cbq = read_eeprom (2);                                              
    while (true)     
    {                           
       doc_thoi_gian_tu_ds1307(); 
       if(giay_temp != giay_ht)
-      {   
-         if(0 != mode)
-         {
-            temp++;
-            if(120 == temp)
-            {
-               mode = 0;
-               set = 0;
-            }
-         }
-         else 
-            temp = 0;
-         hienthi_lcd ();         
-         giay_temp = giay_ht;   
+      {                           
+          hienthi_lcd ();         
+          giay_temp = giay_ht;                                                                            
+          thoat_che_do_cai_dat();   
+          tu_dong_tat_den_nen_lcd();   
       } 
        
-      for (unsigned int16 k=0; k<500; k++) 
-      {                                                                                
+      for (unsigned int16 i=0; i<500; i++) 
+      {                                        
+         if (chedo_hd == 0)                                                                          
+         {                 
+            bat_den_o_che_do_tu_dong ();        
+            tat_den_o_che_do_tu_dong ();                
+         }                                         
+         else   button_on_off_lamp ();
          button_up ();              button_dw ();
-         button_mode ();            button_set ();  
-         on_off_den();              button_onOff();
-      }    
-      restart_wdt();
+         button_mode ();            button_set () ;  
+      }                                       
    }
 }
-                                                                                                                
-
